@@ -30,15 +30,25 @@ function App() {
         // Convert to array of arrays
         const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
         
-        // Extract first column, filtering out empties and possible headers like "이름" or "Name"
+        // Extract columns A, B, C, D
         const extractedPlayers = json
-          .map(row => row[0])
-          .filter(val => val && typeof val === 'string')
-          .map(val => val.trim())
-          .filter(val => val !== '이름' && val !== 'Name' && val.length > 0);
+          .filter(row => row[0] && typeof row[0] === 'string' && row[0].trim() !== '이름' && row[0].trim() !== 'Name' && row[0].trim().length > 0)
+          .map(row => ({
+            name: row[0].trim(),
+            handicap: row[1] !== undefined && row[1] !== null && row[1] !== '' && !isNaN(Number(row[1])) ? Number(row[1]) : null,
+            avoidGroup: row[2] ? String(row[2]).trim() : null,
+            mustGroup: row[3] ? String(row[3]).trim() : null
+          }));
 
         // Remove duplicates just in case
-        const uniquePlayers = [...new Set(extractedPlayers)];
+        const uniquePlayers = [];
+        const seen = new Set();
+        for (const p of extractedPlayers) {
+          if (!seen.has(p.name)) {
+            seen.add(p.name);
+            uniquePlayers.push(p);
+          }
+        }
 
         if (uniquePlayers.length < 3) {
           setError('조를 편성하기에 인원이 너무 적습니다. (최소 3명 필요)');
@@ -98,10 +108,10 @@ function App() {
         const row = [
           `Day ${dayIndex + 1}`,
           `${groupIndex + 1}조`,
-          group[0] || '',
-          group[1] || '',
-          group[2] || '',
-          group[3] || ''
+          group[0] ? group[0].name : '',
+          group[1] ? group[1].name : '',
+          group[2] ? group[2].name : '',
+          group[3] ? group[3].name : ''
         ];
         exportData.push(row);
       });
@@ -130,7 +140,7 @@ function App() {
     <div className="container animate-fade-in">
       <header className="header">
         <h1 className="text-gradient">Golf Grouping Optimizer</h1>
-        <p>최적의 골프 라운드 조편성을 자동으로 생성하세요. 중복 만남을 최소화하여 다양한 사람들과 라운딩할 수 있도록 시뮬레이션합니다.</p>
+        <p>최적의 골프 라운드 조편성을 자동으로 생성하세요. 중복 만남을 최소화하고 핸디캡, 기피/필수 조건을 모두 고려하여 시뮬레이션합니다.</p>
       </header>
 
       <div className="main-grid">
@@ -154,17 +164,33 @@ function App() {
               <div className="upload-text">
                 {players.length > 0 ? `명단 로드 완료 (${players.length}명)` : '클릭하여 엑셀 파일 업로드'}
               </div>
-              <div className="upload-hint">.xlsx 형식의 파일 (A열에 이름 목록)</div>
+              <div className="upload-hint">A열: 이름, B열: 핸디캡, C열: 기피(X), D열: 필수(O)</div>
             </label>
 
             {players.length > 0 && (
-              <div style={{ marginTop: '1rem' }}>
+              <div style={{ marginTop: '1.5rem' }}>
                 <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>참가자 미리보기:</p>
-                <div style={{ display: 'flex', flexWrap: 'wrap', maxHeight: '100px', overflowY: 'auto' }}>
-                  {players.slice(0, 10).map((p, i) => (
-                    <span key={i} className="player-tag">{p}</span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', maxHeight: '150px', overflowY: 'auto', paddingRight: '0.5rem' }}>
+                  {players.slice(0, 15).map((p, i) => (
+                    <div key={i} style={{
+                      background: 'rgba(59, 130, 246, 0.1)',
+                      border: '1px solid rgba(59, 130, 246, 0.2)',
+                      padding: '0.25rem 0.75rem',
+                      borderRadius: '8px',
+                      fontSize: '0.875rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem'
+                    }}>
+                      <span style={{ fontWeight: 600 }}>{p.name}</span>
+                      <div style={{ display: 'flex', gap: '0.25rem' }}>
+                        {p.handicap !== null && <span style={{ fontSize: '0.75rem', background: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: '4px' }}>H:{p.handicap}</span>}
+                        {p.avoidGroup && <span style={{ fontSize: '0.75rem', background: 'rgba(239, 68, 68, 0.2)', color: '#fca5a5', padding: '2px 6px', borderRadius: '4px' }}>기피:{p.avoidGroup}</span>}
+                        {p.mustGroup && <span style={{ fontSize: '0.75rem', background: 'rgba(16, 185, 129, 0.2)', color: '#6ee7b7', padding: '2px 6px', borderRadius: '4px' }}>필수:{p.mustGroup}</span>}
+                      </div>
+                    </div>
                   ))}
-                  {players.length > 10 && <span className="player-tag">+{players.length - 10}명</span>}
+                  {players.length > 15 && <div className="player-tag" style={{ padding: '0.25rem 0.75rem' }}>+{players.length - 15}명</div>}
                 </div>
               </div>
             )}
@@ -260,10 +286,10 @@ function App() {
                         {dayGroups.map((group, groupIndex) => (
                           <tr key={groupIndex}>
                             <td style={{ fontWeight: 600, color: 'var(--accent-secondary)' }}>{groupIndex + 1}조</td>
-                            <td>{group[0] || <span style={{ color: 'var(--text-muted)' }}>-</span>}</td>
-                            <td>{group[1] || <span style={{ color: 'var(--text-muted)' }}>-</span>}</td>
-                            <td>{group[2] || <span style={{ color: 'var(--text-muted)' }}>-</span>}</td>
-                            <td>{group[3] || <span style={{ color: 'var(--text-muted)' }}>-</span>}</td>
+                            <td>{group[0] ? group[0].name : <span style={{ color: 'var(--text-muted)' }}>-</span>}</td>
+                            <td>{group[1] ? group[1].name : <span style={{ color: 'var(--text-muted)' }}>-</span>}</td>
+                            <td>{group[2] ? group[2].name : <span style={{ color: 'var(--text-muted)' }}>-</span>}</td>
+                            <td>{group[3] ? group[3].name : <span style={{ color: 'var(--text-muted)' }}>-</span>}</td>
                           </tr>
                         ))}
                       </tbody>

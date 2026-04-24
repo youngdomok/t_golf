@@ -25,32 +25,77 @@ export function getGroupSizes(numPlayers) {
   return sizes;
 }
 
-// Helper to calculate overlap score for the entire schedule
-// Penalty is based on how many times pairs meet more than once
-function calculateScore(schedule) {
+// Helper to calculate overlap score and constraint penalties for the entire schedule
+function calculateScore(schedule, allPlayers) {
   let score = 0;
   const meets = new Map();
 
   for (const day of schedule) {
-    for (const group of day) {
+    
+    // Check Must-Group constraint across the entire day
+    // Everyone with the same mustGroup tag must be in the exact same group
+    const groupOfMustTag = new Map(); // mustGroupTag -> groupIndex
+    
+    for (let gIndex = 0; gIndex < day.length; gIndex++) {
+      const group = day[gIndex];
+      
+      let minHandicap = Infinity;
+      let maxHandicap = -Infinity;
+      let hasHandicap = false;
+      
+      const avoidTagsInGroup = new Set();
+      
       for (let i = 0; i < group.length; i++) {
+        const p1 = group[i];
+        
+        // Handicap calculation
+        if (p1.handicap !== null) {
+          hasHandicap = true;
+          if (p1.handicap < minHandicap) minHandicap = p1.handicap;
+          if (p1.handicap > maxHandicap) maxHandicap = p1.handicap;
+        }
+        
+        // Avoid group penalty
+        if (p1.avoidGroup) {
+          if (avoidTagsInGroup.has(p1.avoidGroup)) {
+            score += 10000; // MASSIVE penalty for same avoid group
+          }
+          avoidTagsInGroup.add(p1.avoidGroup);
+        }
+        
+        // Must group logic
+        if (p1.mustGroup) {
+          if (groupOfMustTag.has(p1.mustGroup)) {
+            if (groupOfMustTag.get(p1.mustGroup) !== gIndex) {
+              score += 10000; // MASSIVE penalty if same mustGroup is in different groups
+            }
+          } else {
+            groupOfMustTag.set(p1.mustGroup, gIndex);
+          }
+        }
+        
+        // Overlap counting
         for (let j = i + 1; j < group.length; j++) {
-          // Create a consistent pair key
-          const p1 = group[i];
           const p2 = group[j];
-          const pairKey = p1 < p2 ? `${p1}||${p2}` : `${p2}||${p1}`;
-          
+          const pairKey = p1.name < p2.name ? `${p1.name}||${p2.name}` : `${p2.name}||${p1.name}`;
           const count = (meets.get(pairKey) || 0) + 1;
           meets.set(pairKey, count);
         }
       }
+      
+      // Handicap penalty (difference between max and min in the group)
+      // If people have similar handicaps, this difference is small.
+      if (hasHandicap && minHandicap !== Infinity && maxHandicap !== -Infinity) {
+        // Multiply by a factor so it doesn't overpower the overlap penalty, but is still considered
+        score += (maxHandicap - minHandicap) * 0.5; 
+      }
     }
   }
 
-  // Calculate penalty
+  // Add overlap penalty
   for (const count of meets.values()) {
     if (count > 1) {
-      score += Math.pow(count - 1, 2); // Squared penalty for multiple meetings
+      score += Math.pow(count - 1, 2) * 5; // Weight overlap more heavily than handicap variance
     }
   }
 
@@ -67,7 +112,7 @@ function shuffle(array) {
   return result;
 }
 
-export function generateOptimizedSchedule(players, days, iterations = 10000) {
+export function generateOptimizedSchedule(players, days, iterations = 20000) {
   if (!players || players.length === 0 || days <= 0) return [];
 
   const groupSizes = getGroupSizes(players.length);
@@ -85,13 +130,13 @@ export function generateOptimizedSchedule(players, days, iterations = 10000) {
     currentSchedule.push(dayGroups);
   }
 
-  let currentScore = calculateScore(currentSchedule);
+  let currentScore = calculateScore(currentSchedule, players);
   let bestSchedule = JSON.parse(JSON.stringify(currentSchedule));
   let bestScore = currentScore;
 
   // 2. Simulated Annealing / Local Search optimization
-  let temp = 1.0;
-  const coolingRate = 0.9995;
+  let temp = 100.0;
+  const coolingRate = 0.999;
 
   for (let i = 0; i < iterations; i++) {
     if (currentScore === 0) break; // Perfect score achieved
@@ -124,7 +169,7 @@ export function generateOptimizedSchedule(players, days, iterations = 10000) {
     newSchedule[dayIndex][g1Index][p1Index] = p2;
     newSchedule[dayIndex][g2Index][p2Index] = p1;
 
-    const newScore = calculateScore(newSchedule);
+    const newScore = calculateScore(newSchedule, players);
 
     // Acceptance condition (Simulated Annealing)
     if (newScore < currentScore || Math.random() < Math.exp((currentScore - newScore) / temp)) {
