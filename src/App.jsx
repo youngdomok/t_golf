@@ -307,8 +307,8 @@ function App() {
         bottom: '1rem',
         right: '2rem',
         fontSize: '0.75rem',
-        color: 'var(--text-muted)',
-        opacity: 0.8
+        color: '#ffffff',
+        opacity: 0.9
       }}>
         B 핸디, C 동일한 표시 다른 조, D 동일한 표시 같은 조
       </div>
