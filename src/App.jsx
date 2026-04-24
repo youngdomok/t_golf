@@ -137,7 +137,7 @@ function App() {
   };
 
   return (
-    <div className="container animate-fade-in">
+    <div className="container animate-fade-in" style={{ position: 'relative', minHeight: '100vh', paddingBottom: '4rem' }}>
       <header className="header">
         <h1 className="text-gradient">Golf Grouping Optimizer</h1>
         <p>최적의 골프 라운드 조편성을 자동으로 생성하세요. 중복 만남을 최소화하고 핸디캡, 기피/필수 조건을 모두 고려하여 시뮬레이션합니다.</p>
@@ -300,6 +300,17 @@ function App() {
             </div>
           )}
         </main>
+      </div>
+
+      <div style={{
+        position: 'absolute',
+        bottom: '1rem',
+        right: '2rem',
+        fontSize: '0.75rem',
+        color: 'var(--text-muted)',
+        opacity: 0.8
+      }}>
+        B 핸디, C 동일한 표시 다른 조, D 동일한 표시 같은 조
       </div>
     </div>
   );
